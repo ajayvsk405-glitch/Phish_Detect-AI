@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PhishDetect | Enterprise Security</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        :root {
+            --vt-blue: #1a73e8; --vt-bg: #f8f9fa; --vt-text: #202124; --vt-gray: #5f6368;
+            --vt-border: #dadce0; --vt-safe: #0f9d58; --vt-danger: #d93025; --vt-warning: #f29900;
+        }
+
+        body { font-family: 'Open Sans', sans-serif; background-color: var(--vt-bg); color: var(--vt-text); margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+
+        .navbar { width: 100%; background: #fff; padding: 15px 30px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: flex; align-items: center; box-sizing: border-box; }
+        .navbar .logo { font-size: 1.2rem; font-weight: 700; color: var(--vt-blue); text-decoration: none; display: flex; align-items: center; gap: 10px; }
+
+        .container { width: 100%; max-width: 800px; margin-top: 60px; padding: 20px; box-sizing: border-box; }
+
+        .search-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); border: 1px solid var(--vt-border); overflow: hidden; animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .tabs { display: flex; border-bottom: 1px solid var(--vt-border); background: #fafafa; flex-wrap: wrap;}
+        .tab { flex: 1; min-width: 120px; text-align: center; padding: 15px; font-weight: 600; color: var(--vt-gray); cursor: pointer; border-bottom: 3px solid transparent; transition: 0.3s; font-size: 0.9rem;}
+        .tab i { margin-right: 8px; font-size: 1.1rem; }
+        .tab.active { color: var(--vt-blue); border-bottom: 3px solid var(--vt-blue); background: #fff; }
+        .tab:hover { background: #f1f3f4; }
+
+        .search-area { padding: 50px 40px; text-align: center; }
+        .search-icon-big { font-size: 3rem; color: var(--vt-blue); margin-bottom: 20px; opacity: 0.2; }
+        .input-group { position: relative; max-width: 600px; margin: 0 auto; }
+        
+        /* Inputs */
+        .input-group input[type="url"] { width: 100%; padding: 15px 60px 15px 20px; font-size: 1rem; border: 2px solid var(--vt-border); border-radius: 30px; outline: none; transition: 0.2s; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .input-group input[type="url"]:focus { border-color: var(--vt-blue); box-shadow: 0 1px 6px rgba(26, 115, 232, 0.2); }
+        
+        .input-group textarea { width: 100%; padding: 15px; font-size: 1rem; border: 2px solid var(--vt-border); border-radius: 15px; outline: none; transition: 0.2s; box-sizing: border-box; height: 120px; resize: none; font-family: inherit;}
+        .input-group textarea:focus { border-color: var(--vt-blue); }
+
+        .file-upload-wrapper { border: 2px dashed var(--vt-border); border-radius: 10px; padding: 30px; cursor: pointer; transition: 0.3s; background: #fafafa; }
+        .file-upload-wrapper:hover { border-color: var(--vt-blue); background: #f0f4f8; }
+        input[type="file"] { display: none; }
+        .file-upload-label { font-size: 1rem; color: var(--vt-gray); cursor: pointer; font-weight: 600; display: block;}
+
+        .scan-btn { position: absolute; right: 5px; top: 5px; bottom: 5px; background: none; border: none; color: var(--vt-blue); font-size: 1.2rem; width: 50px; cursor: pointer; border-radius: 50%; transition: 0.2s; }
+        .scan-btn:hover { background: #f1f3f4; }
+        .action-btn-main { background: var(--vt-blue); color: white; border: none; padding: 12px 30px; border-radius: 30px; font-weight: 600; margin-top: 20px; cursor: pointer; transition: 0.3s; }
+        
+        .disclaimer { font-size: 0.75rem; color: var(--vt-gray); margin-top: 25px; }
+        .error-msg { color: var(--vt-danger); background: #fce8e6; padding: 10px; border-radius: 5px; font-weight: 600; margin-bottom: 20px; display: inline-block; }
+
+        .loader { display: none; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid var(--vt-blue); border-radius: 50%; animation: spin 1s linear infinite; vertical-align: middle; margin-left: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* RESULTS UI */
+        .result-header { display: flex; align-items: center; gap: 15px; margin-bottom: 25px; word-break: break-all; }
+        .score-circle { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700; color: #fff; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+
+        {% if risk < 30 %} .risk-color { color: var(--vt-safe); } .risk-bg { background-color: var(--vt-safe); }
+        {% elif risk < 75 %} .risk-color { color: var(--vt-warning); } .risk-bg { background-color: var(--vt-warning); }
+        {% else %} .risk-color { color: var(--vt-danger); } .risk-bg { background-color: var(--vt-danger); } {% endif %}
+
+        .report-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .report-grid { grid-template-columns: 1fr; } }
+
+        .details-card { background: #fff; border: 1px solid var(--vt-border); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 20px;}
+        .card-header { background: #f8f9fa; padding: 15px 20px; font-weight: 600; border-bottom: 1px solid var(--vt-border); color: #202124; display: flex; justify-content: space-between; align-items: center;}
+        .list-item { padding: 15px 20px; border-bottom: 1px solid #f1f3f4; display: flex; align-items: flex-start; gap: 10px; font-size: 0.9rem; }
+        .list-item:last-child { border-bottom: none; }
+
+        .passport-data { display: flex; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid #f1f3f4; font-size: 0.85rem; }
+        .passport-data .label { color: var(--vt-gray); }
+        .passport-data .value { font-weight: 600; text-align: right; }
+
+        .recommendation-box { background: rgba(15, 157, 88, 0.1); border: 1px solid var(--vt-safe); padding: 15px; border-radius: 8px; margin-top: 20px; text-align: center; margin-bottom: 20px;}
+        .btn-safe { display: inline-block; background: var(--vt-safe); color: #fff; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; margin-top: 10px; cursor: pointer; border: none;}
+        
+        .action-buttons { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;}
+        .reanalyze-btn { background: #fff; border: 1px solid var(--vt-gray); color: var(--vt-gray); padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .reanalyze-btn:hover { background: #f1f3f4; }
+        
+        /* Map Container */
+        #radar-map { height: 250px; width: 100%; z-index: 1;}
+        .pulse-marker { background: var(--vt-danger); width: 15px; height: 15px; border-radius: 50%; box-shadow: 0 0 0 rgba(217, 48, 37, 0.4); animation: pulse 2s infinite; border: 2px solid #fff;}
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(217, 48, 37, 0); } 100% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0); } }
+
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <a href="/" class="logo"><i class="fas fa-shield-virus"></i> PhishDetect AI</a>
+    </div>
+
+    <div class="container">
+        
+        {% if not result %}
+        <div class="search-card">
+            <div class="tabs">
+                <div class="tab active" id="tab-url" onclick="switchTab('url')"><i class="fas fa-link"></i> URL SCAN</div>
+                <div class="tab" id="tab-qr" onclick="switchTab('qr')"><i class="fas fa-qrcode"></i> QUISHING</div>
+                <div class="tab" id="tab-text" onclick="switchTab('text')"><i class="fas fa-comment-sms"></i> TEXT ANALYZER</div>
+            </div>
+
+            <div class="search-area">
+                {% if qr_error %}
+                <div class="error-msg">{{ qr_error }}</div>
+                {% endif %}
+
+                <form method="post" id="form-url" onsubmit="startScan('s-icon-url', 's-loader-url')">
+                    <div id="url-section">
+                        <i class="fas fa-globe search-icon-big"></i>
+                        <h2 style="font-weight: 400; margin-bottom: 30px; color: #3c4043;">Analyze suspicious URLs and domains</h2>
+                        <div class="input-group">
+                            <input type="url" name="url" placeholder="Search or scan a URL (e.g., https://example.com)" required autofocus>
+                            <button type="submit" class="scan-btn">
+                                <i class="fas fa-search" id="s-icon-url"></i>
+                                <div class="loader" id="s-loader-url"></div>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <form method="post" id="form-qr" enctype="multipart/form-data" style="display: none;" onsubmit="startScan('s-icon-qr', 's-loader-qr')">
+                    <div id="qr-section">
+                        <i class="fas fa-qrcode search-icon-big"></i>
+                        <h2 style="font-weight: 400; margin-bottom: 30px; color: #3c4043;">Scan QR Code for Hidden Phishing Links</h2>
+                        <div class="input-group">
+                            <div class="file-upload-wrapper" onclick="document.getElementById('qr_file').click()">
+                                <input type="file" name="qr_file" id="qr_file" accept="image/*" onchange="updateFileName(this)">
+                                <span class="file-upload-label" id="file-name"><i class="fas fa-cloud-upload-alt"></i> Click to Upload QR Image</span>
+                            </div>
+                            <button type="submit" class="action-btn-main">
+                                <i class="fas fa-shield-alt" id="s-icon-qr"></i> Extract & Scan <div class="loader" id="s-loader-qr" style="border-top-color: #fff;"></div>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <form method="post" id="form-text" style="display: none;" onsubmit="startScan('s-icon-text', 's-loader-text')">
+                    <div id="text-section">
+                        <i class="fas fa-file-alt search-icon-big"></i>
+                        <h2 style="font-weight: 400; margin-bottom: 30px; color: #3c4043;">Paste Suspicious SMS or Email Text</h2>
+                        <div class="input-group">
+                            <textarea name="sms_text" placeholder="e.g., Dear Customer, your KYC is pending. Click here to update urgently: http://scam-link.com" required></textarea>
+                            <button type="submit" class="action-btn-main">
+                                <i class="fas fa-microscope" id="s-icon-text"></i> Analyze Text <div class="loader" id="s-loader-text" style="border-top-color: #fff;"></div>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <p class="disclaimer">By submitting data above, you are agreeing to our Terms of Service.</p>
+            </div>
+        </div>
+        {% endif %}
+
+
+        {% if result %}
+        <div style="animation: fadeIn 0.4s ease-out;">
+            
+            <div id="pdf-content" style="background: var(--vt-bg); padding: 10px;">
+                <div class="result-header">
+                    <div class="score-circle risk-bg">{{ risk }}<span style="font-size: 0.8rem;">/100</span></div>
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.4rem; color: #202124; word-break: break-all;">{{ url }}</h2>
+                        <h4 class="risk-color" style="margin: 5px 0 0 0; font-weight: 600;">{{ result }}</h4>
+                    </div>
+                </div>
+
+                <div class="report-grid">
+                    <div>
+                        {% if text_analysis %}
+                        <div class="details-card">
+                            <div class="card-header" style="background: #fce8e6; color: var(--vt-danger);"><i class="fas fa-comment-sms"></i> NLP Text Analysis</div>
+                            <div style="padding: 15px; font-size: 0.9rem; color: #3c4043; line-height: 1.6;">
+                                <p style="margin-top: 0;"><strong>Extracted Message:</strong></p>
+                                <div style="background: #f1f3f4; padding: 15px; border-radius: 8px; font-style: italic;">
+                                    {{ text_analysis.html | safe }}
+                                </div>
+                                {% if text_analysis.words %}
+                                <p style="margin-bottom: 0; color: var(--vt-danger); font-size: 0.85rem; margin-top: 10px;">
+                                    <i class="fas fa-exclamation-circle"></i> Identified social engineering triggers: <strong>{{ text_analysis.words | join(', ') }}</strong>
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="details-card">
+                            <div class="card-header"><i class="fas fa-list-ul"></i> Detection Details</div>
+                            <div>
+                                {% for r in reasons %}
+                                <div class="list-item">
+                                    {% if "🚨" in r %} <i class="fas fa-exclamation-triangle" style="color: var(--vt-danger);"></i>
+                                    {% elif "✅" in r %} <i class="fas fa-check-circle" style="color: var(--vt-safe);"></i>
+                                    {% elif "⚠️" in r or "🚩" in r or "🔀" in r %} <i class="fas fa-exclamation-circle" style="color: var(--vt-warning);"></i>
+                                    {% else %} <i class="fas fa-info-circle" style="color: var(--vt-blue);"></i> {% endif %}
+                                    <span style="color: #3c4043;">{{ r | replace('🚨', '') | replace('✅', '') | replace('⚠️', '') | replace('🚩', '') | replace('🔀', '') | replace('📄', '') | replace('⚡', '') }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div style="padding: 15px; border-left: 4px solid; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 20px;" class="risk-color">
+                            <strong style="color: #202124;">Analyst Note:</strong> <span style="color: #5f6368;">{{ advice }}</span>
+                        </div>
+
+                        {% if official_link %}
+                        <div class="recommendation-box">
+                            <h4 style="color: var(--vt-safe); margin: 0 0 10px 0;"><i class="fas fa-shield-alt"></i> Safe Route Available</h4>
+                            <p style="font-size: 0.9rem; color: #5f6368; margin: 0 0 15px 0;">This URL appears to imitate a known brand. We recommend visiting the official site instead.</p>
+                            <a href="{{ official_link }}" target="_blank" class="btn-safe">Go to {{ official_link }}</a>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <div class="details-card">
+                            <div class="card-header"><i class="fas fa-satellite-dish"></i> Global Threat Radar</div>
+                            <div id="radar-map"></div>
+                            <div style="padding: 10px; text-align: center; font-size: 0.8rem; color: var(--vt-gray); background: #202124;">
+                                Server Origin Coordinates: [{{ passport.lat }}, {{ passport.lon }}]
+                            </div>
+                        </div>
+
+                        <div class="details-card">
+                            <div class="card-header"><i class="fas fa-passport"></i> Domain Details</div>
+                            <div class="passport-data"><span class="label">Registrar Age</span> <span class="value">{{ passport.age }}</span></div>
+                            <div class="passport-data"><span class="label">Registrar</span> <span class="value">{{ passport.registrar }}</span></div>
+                            <div class="passport-data"><span class="label">SSL Certificate</span> <span class="value">{{ passport.ssl }}</span></div>
+                            <div class="passport-data"><span class="label">Server</span> <span class="value">{{ passport.server }}</span></div>
+                            
+                            {% if passport.redirects > 0 %}
+                            <div class="passport-data" style="flex-direction: column; gap: 5px;">
+                                <span class="label">Hop Path Tracker</span> 
+                                <span class="value" style="font-size: 0.75rem; color: var(--vt-warning); text-align: left; word-break: break-all;">{{ passport.hop_path }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        {% if screenshot_url %}
+                        <div class="details-card">
+                            <div class="card-header"><i class="fas fa-camera"></i> Live Snapshot</div>
+                            <div style="padding: 15px; text-align: center; background: #f8f9fa;">
+                                <div style="border: 1px solid var(--vt-border); border-radius: 4px; overflow: hidden; height: 300px;">
+                                    <img src="{{ screenshot_url }}" alt="Preview" style="width: 100%; height: 100%; object-fit: cover; object-position: top;">
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div> <div class="action-buttons">
+                <button class="btn-safe" style="background: var(--vt-blue);" onclick="generatePDF()"><i class="fas fa-file-pdf"></i> Download Intelligence Report</button>
+                <button class="reanalyze-btn" onclick="window.location.href='/'"><i class="fas fa-sync-alt"></i> New Scan</button>
+            </div>
+
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Tab switching logic (URL, QR, TEXT)
+        function switchTab(tabType) {
+            document.getElementById('tab-url').classList.remove('active');
+            document.getElementById('tab-qr').classList.remove('active');
+            document.getElementById('tab-text').classList.remove('active');
+            
+            document.getElementById('form-url').style.display = 'none';
+            document.getElementById('form-qr').style.display = 'none';
+            document.getElementById('form-text').style.display = 'none';
+
+            if (tabType === 'url') {
+                document.getElementById('tab-url').classList.add('active');
+                document.getElementById('form-url').style.display = 'block';
+            } else if (tabType === 'qr') {
+                document.getElementById('tab-qr').classList.add('active');
+                document.getElementById('form-qr').style.display = 'block';
+            } else {
+                document.getElementById('tab-text').classList.add('active');
+                document.getElementById('form-text').style.display = 'block';
+            }
+        }
+
+        function updateFileName(input) {
+            if (input.files && input.files[0]) {
+                document.getElementById('file-name').innerHTML = '<i class="fas fa-image"></i> ' + input.files[0].name;
+                document.getElementById('file-name').style.color = 'var(--vt-blue)';
+            }
+        }
+
+        function startScan(iconId, loaderId) {
+            document.getElementById(iconId).style.display = 'none';
+            document.getElementById(loaderId).style.display = 'inline-block';
+        }
+
+        function generatePDF() {
+            const element = document.getElementById('pdf-content');
+            var opt = {
+                margin:       0.5,
+                filename:     'PhishDetect_Intelligence_Report.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+
+        {% if qr_error %}
+            window.onload = function() { switchTab('qr'); };
+        {% endif %}
+
+        // LEAFLET MAP INITIALIZATION (Only runs if results exist)
+        {% if result %}
+        window.onload = function() {
+            var lat = {{ passport.lat }};
+            var lon = {{ passport.lon }};
+            
+            // Initialize map
+            var map = L.map('radar-map', {
+                zoomControl: true,
+                attributionControl: false
+            }).setView([lat, lon], 4);
+            
+            // Add Dark CartoDB Map layer for Hacker/Cyber feel
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Custom Pulsing Red Marker
+            var pulseIcon = L.divIcon({
+                className: 'pulse-marker',
+                iconSize: [15, 15],
+                iconAnchor: [7, 7]
+            });
+
+            L.marker([lat, lon], {icon: pulseIcon}).addTo(map)
+                .bindPopup('<b style="color:var(--vt-danger);">Host Server Located</b><br>Tracking Origin...').openPopup();
+        };
+        {% endif %}
+    </script>
+</body>
+</html>
